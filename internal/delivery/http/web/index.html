@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Order Viewer - WB L0</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #64748b;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: var(--bg);
+            color: #334155;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--card);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .search-box {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            background: #f1f5f9;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        pre {
+            background: #1e293b;
+            color: #f1f5f9;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .loading {
+            color: var(--secondary);
+            font-style: italic;
+        }
+
+        .error {
+            color: var(--danger);
+            padding: 1rem;
+            background: #fef2f2;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>📦 Order Viewer</h1>
+
+        <div class="search-box">
+            <input type="text" id="orderId" placeholder="Enter Order UID" />
+            <button onclick="fetchOrder()">Search</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Cache Hits</div>
+                <div class="stat-value" id="cacheHits">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Cache Misses</div>
+                <div class="stat-value" id="cacheMisses">0</div>
+            </div>
+        </div>
+
+        <div>
+            <h3>Recent Orders</h3>
+            <div id="recentOrders"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Order Details</h2>
+        <pre id="result">No data yet. Enter Order UID to search.</pre>
+    </div>
+</div>
+
+<script>
+    let recentOrders = [];
+
+    async function fetchOrder() {
+        const orderUid = document.getElementById('orderId').value.trim();
+        if (!orderUid) {
+            alert("Please enter Order UID");
+            return;
+        }
+
+        const resultEl = document.getElementById('result');
+        resultEl.innerHTML = '<div class="loading">Loading...</div>';
+
+        try {
+            const startTime = performance.now();
+            const res = await fetch(`/order/${orderUid}`);
+            const endTime = performance.now();
+
+            if (!res.ok) {
+                throw new Error(`Error: ${res.status} ${res.statusText}`);
+            }
+
+            const data = await res.json();
+            const duration = (endTime - startTime).toFixed(2);
+
+            resultEl.innerHTML = `<div style="color: var(--success); margin-bottom: 1rem;">
+                    ✅ Found in ${duration}ms
+                </div>${JSON.stringify(data, null, 2)}`;
+
+            // Добавляем в историю
+            addToRecentOrders(orderUid, duration);
+
+        } catch (err) {
+            resultEl.innerHTML = `<div class="error">${err.message}</div>`;
+        }
+
+        // Обновляем метрики
+        updateMetrics();
+    }
+
+    function addToRecentOrders(orderUid, duration) {
+        recentOrders.unshift({ orderUid, duration, timestamp: new Date() });
+        recentOrders = recentOrders.slice(0, 5); // Keep last 5
+
+        const recentEl = document.getElementById('recentOrders');
+        recentEl.innerHTML = recentOrders.map(order =>
+            `<div style="margin-bottom: 0.5rem; font-size: 0.9rem;">
+                    📦 ${order.orderUid} (${order.duration}ms)
+                </div>`
+        ).join('');
+    }
+
+    async function updateMetrics() {
+        try {
+            const res = await fetch('/metrics');
+            const text = await res.text();
+
+            // Парсим Prometheus метрики
+            const cacheHits = text.match(/cache_hits_total (\d+)/);
+            const cacheMisses = text.match(/cache_misses_total (\d+)/);
+
+            if (cacheHits) document.getElementById('cacheHits').textContent = cacheHits[1];
+            if (cacheMisses) document.getElementById('cacheMisses').textContent = cacheMisses[1];
+        } catch (err) {
+            console.log('Could not fetch metrics');
+        }
+    }
+
+    // Загружаем метрики при старте
+    updateMetrics();
+    setInterval(updateMetrics, 5000); // Обновляем каждые 5 секунд
+</script>
+</body>
+</html>

@@ -67,10 +67,6 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*domain.Ord
 		return order, nil
 	}
 
-	if order, ok := s.cache.Get(id); ok {
-		return order, nil
-	}
-
 	order, err := s.postgres.GetByID(ctx, id)
 	if err != nil {
 		log.Printf("order not found in postgres: %v", err)

@@ -48,6 +48,16 @@ services:
       - kafka
     restart: always
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel verbose --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+
+
   order-generator:
     build: .
     container_name: order-generator
@@ -60,3 +70,4 @@ services:
 
 volumes:
   pgdata:
+  redis_data:

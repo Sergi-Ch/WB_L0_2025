@@ -5,7 +5,7 @@
     <title>Order Viewer - WB L0</title>
     <style>
         :root {
-            --primary: #2563eb;
+            --primary: #8e11a1;
             --secondary: #64748b;
             --success: #10b981;
             --danger: #ef4444;
@@ -62,7 +62,7 @@
         }
 
         button:hover {
-            background: #1d4ed8;
+            background: #8e11a1;
         }
 
         .stats {
@@ -169,14 +169,13 @@
                     ✅ Found in ${duration}ms
                 </div>${JSON.stringify(data, null, 2)}`;
 
-            // Добавляем в историю
             addToRecentOrders(orderUid, duration);
 
         } catch (err) {
             resultEl.innerHTML = `<div class="error">${err.message}</div>`;
         }
 
-        // Обновляем метрики
+
         updateMetrics();
     }
 
@@ -197,20 +196,33 @@
             const res = await fetch('/metrics');
             const text = await res.text();
 
-            // Парсим Prometheus метрики
-            const cacheHits = text.match(/cache_hits_total (\d+)/);
-            const cacheMisses = text.match(/cache_misses_total (\d+)/);
 
-            if (cacheHits) document.getElementById('cacheHits').textContent = cacheHits[1];
-            if (cacheMisses) document.getElementById('cacheMisses').textContent = cacheMisses[1];
+            const lines = text.split('\n');
+            let cacheHits = 0;
+            let cacheMisses = 0;
+
+            for (const line of lines) {
+                if (line.startsWith('cache_hits_total')) {
+                    const match = line.match(/cache_hits_total (\d+)/);
+                    if (match) cacheHits = parseInt(match[1]);
+                }
+                if (line.startsWith('cache_misses_total')) {
+                    const match = line.match(/cache_misses_total (\d+)/);
+                    if (match) cacheMisses = parseInt(match[1]);
+                }
+            }
+
+            document.getElementById('cacheHits').textContent = cacheHits;
+            document.getElementById('cacheMisses').textContent = cacheMisses;
+
         } catch (err) {
-            console.log('Could not fetch metrics');
+            console.log('Could not fetch metrics:', err);
         }
     }
 
-    // Загружаем метрики при старте
+
     updateMetrics();
-    setInterval(updateMetrics, 5000); // Обновляем каждые 5 секунд
+    setInterval(updateMetrics, 5000);
 </script>
 </body>
 </html>

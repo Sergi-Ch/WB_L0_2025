@@ -54,6 +54,7 @@ func main() {
 	//if err != nil {
 	//	log.Fatalf("error of loading .env %v", err)
 	//}
+
 	password := os.Getenv("DATABASE_PASSWORD")
 	dataBaseName := os.Getenv("DATABASE_NAME")
 	userName := os.Getenv("USER_NAME")
@@ -70,8 +71,8 @@ func main() {
 	}
 
 	//инициализация слоев
-	cache := repository.NewCache()
-	orderService := service.NewOrderService(pgRepo, cache)
+	redisCache := repository.NewRedisCache("redis:6379", 30*time.Minute)
+	orderService := service.NewOrderService(pgRepo, redisCache)
 
 	handler := prHttp.NewOrderHandler(orderService)
 	r := chi.NewRouter()
@@ -113,16 +114,35 @@ func main() {
 
 	<-stop
 	log.Println("Shutting down...")
-	cancel() //кафка
+	cancel()
 
+	// shutdown http server
 	ctxTimeOut, cancelTimeOut := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancelTimeOut()
 	if err := srv.Shutdown(ctxTimeOut); err != nil {
 		log.Printf("http server shutdown error: %v", err)
 	}
 
+	// kafka
 	if err := consumer.Close(); err != nil {
 		log.Printf("Error closing kafka consumer>>> %v", err)
 	}
+	log.Println("Server stopped gracefully")
+
+	// Redis соединение
+	if redisCache != nil {
+		if err := redisCache.Close(); err != nil {
+			log.Printf("error of graceful shutdown redis: %v", err)
+		} else {
+			log.Printf("succesful of graceful shutdown redis")
+		}
+
+	}
+
+	// PostgreSQL соединение
+	if err := pgRepo.Close(); err != nil {
+		log.Printf("error closing postgres: %v", err)
+	}
+
 	log.Println("Server stopped gracefully")
 }

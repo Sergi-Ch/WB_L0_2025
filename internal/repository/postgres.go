@@ -63,7 +63,6 @@ func (r *PostgresRepository) SaveOrders(ctx context.Context, order *domain.Order
 		return fmt.Errorf("insert payment failed: %w", err)
 	}
 
-	// 4. items (массив)
 	for _, item := range order.Items {
 		_, err = tx.Exec(ctx, `
 			INSERT INTO items (
@@ -162,4 +161,11 @@ func (r *PostgresRepository) GetByID(ctx context.Context, orderUID string) (*dom
 	}
 
 	return &order, nil
+}
+
+func (r *PostgresRepository) Close() error {
+	if r.db != nil {
+		r.db.Close()
+	}
+	return nil
 }

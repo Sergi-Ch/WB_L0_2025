@@ -68,7 +68,7 @@ func (h *OrderHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /order для теста
+// POST /order (для теста напрямую)
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	var order domain.Order
 	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
